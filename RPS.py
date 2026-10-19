@@ -1,42 +1,58 @@
-# The example function below keeps track of the opponent's history and plays whatever the opponent played two plays ago. It is not a very good player so you will need to change the code to pass the challenge.
+def player(prev_play, opp_history=[]):
+    if not hasattr(player, "models"):
+        player.models = {2: {}, 3: {}, 4: {}}
+        player.my_history = []
 
-def player(last_opp_move, opp_history=[]):
-    #Store learned behaviour patterns, similar to a training dataset
-    if not hasattr(player, "learned_patterns"):
-        player.learned_patterns ={}
+    counter = {"R": "P", "P": "S", "S": "R"}
 
-    #My winning strategy
-    winning_strategy = {
-        "R": "P",
-        "P": "S",
-        "S": "R"
-    }
-    #Store my opponent's move
-    if last_opp_move:
-        opp_history.append(last_opp_move)
+    #Start fresh when a new game begins
+    if prev_play == "":
+        opp_history.clear()
+        player.models = {2: {}, 3: {}, 4: {}}
+        player.my_history = []
 
-    #Wait until enough history is collected and create a feture from recent moves
+    #Keep track of the opponent's moves and learn their patterns
+    if prev_play:
+        for size in (2, 3, 4):
+            if len(opp_history) >= size:
+                pattern = "".join(opp_history[-size:])
+
+                if pattern not in player.models[size]:
+                    player.models[size][pattern] = {"R": 0, "P": 0, "S": 0}
+                player.models[size][pattern][prev_play] += 1
+
+        opp_history.append(prev_play)
+
+    #Use different moves at the beginning
     if len(opp_history) < 5:
-        return "R"
-    pattern = "".join(opp_history[-3:])
+        move = ["R", "P", "S"][len(opp_history) % 3]
+        player.my_history.append(move)
+        return move
 
-    #My program will learn what happens after this pattern
-    if len(opp_history) >= 4:
-        previous_pattern = "".join(opp_history[-4:-1])
-        next_move = opp_history[-1]
-        if previous_pattern not in player.learned_patterns:
-            player.learned_patterns[previous_pattern] = []
+    scores = {"R": 0, "P": 0, "S": 0}
 
-        player.learned_patterns[previous_pattern].append(next_move)
+    #Use past patterns to guess the opponent's next move
+    for size in (4, 3, 2):
+        if len(opp_history) >= size:
+            pattern = "".join(opp_history[-size:])
+            counts = player.models[size].get(pattern, {})
+            total = sum(counts.values())
 
-    #Predict my opp's next move
-    prediction = None
-    if pattern in player.learned_patterns:
-        prediction = max(set(player.learned_patterns[pattern]), key = player.learned_patterns[pattern].count)
+            if total >= 2:
+                prediction = max(counts, key=counts.get)
+                confidence = counts[prediction] / total
 
-    #if there's no pattern seen, use a frequency
-    if prediction is None:
-        prediction = max(set(opp_history), key = opp_history.count)
+                if confidence >= 0.5:
+                    scores[prediction] += size * confidence
 
-    #Make final decision
-    return winning_strategy[prediction]
+    #Check which move the opponent uses most often
+    recent = opp_history[-20:]
+
+    for move in ("R", "P", "S"):
+        scores[move] += 0.25 * recent.count(move)
+
+    prediction = max(scores, key=scores.get)
+    move = counter[prediction]
+
+    player.my_history.append(move)
+    return move
